@@ -15,8 +15,6 @@ from scipy.misc import imsave
 import random
 from time import time
 
-
-
 import torch
 import numpy as np
 from torch.utils.data import Dataset
@@ -45,12 +43,20 @@ class SYSU_triplet_dataset(Dataset):
 
         with open(file_path, 'r') as file:
             self.ids = file.read().splitlines()
-            self.ids = [int(y) for y in self.ids[0].split(',')]
-            self.ids = ["%04d" % x for x in self.ids]
+
+        self.ids = [int(y) for y in self.ids[0].split(',')]
+        self.ids.sort()
+
+        self.id_dict = {}
+
+        for index, id in enumerate(self.ids):
+            #print(index,id)
+            self.id_dict[id] = index
+
+        self.ids = ["%04d" % x for x in self.ids]
 
         self.transform = transforms.Compose(transforms_list)
-        self.unaligned = unaligned
-
+        
         self.files_rgb = {}
         self.files_ir = {}
 
@@ -69,14 +75,19 @@ class SYSU_triplet_dataset(Dataset):
                     self.files_ir[id].extend(sorted([img_dir+'/'+i for i in os.listdir(img_dir)]))  
         
         self.all_files = []
+        #self.rgb_files = []
+        #self.ir_files = []
 
         for id in sorted(self.ids):
             self.all_files.extend(self.files_rgb[id])
-            self.all_files.extend(self.files_ir[id]) 
+            #self.rgb_files.extend(self.files_rgb[id])
+            self.all_files.extend(self.files_rgb[id])
+            #self.ir_files.extend(self.files_ir[id]) 
         
     def __getitem__(self, index):
 
         anchor_file = self.all_files[index]
+        '''
         anchor_cam = anchor_file.split('/')[1]
 
         if anchor_cam in self.ir_cameras:
@@ -85,26 +96,45 @@ class SYSU_triplet_dataset(Dataset):
         else:
             target_files = self.files_ir
             modality = torch.tensor([0,1]).float()
+        '''
 
-        anchor_id = anchor_file.split('/')[2]       
-        positive_file = np.random.choice(target_files[anchor_id])
+        anchor_id = anchor_file.split('/')[2]
+
+        anchor_rgb = np.random.choice(self.files_rgb[anchor_id])
+        positive_rgb =  np.random.choice([x for x in self.files_rgb[anchor_id] if x != anchor_rgb])
         negative_id = np.random.choice([id for id in self.ids if id != anchor_id])
-        negative_file = np.random.choice(target_files[negative_id])
-
-        anchor_label = np.array(int(anchor_id)-1)
+        negative_rgb = np.random.choice(self.files_rgb[negative_id])      
+        
+        anchor_ir = np.random.choice(self.files_ir[anchor_id])
+        positive_ir =  np.random.choice([x for x in self.files_ir[anchor_id] if x != anchor_ir])
+        negative_id = np.random.choice([id for id in self.ids if id != anchor_id])
+        negative_ir = np.random.choice(self.files_ir[negative_id])      
+        
+        anchor_label = np.array(self.id_dict[int(anchor_id)])
 
         #print(anchor_file, positive_file, negative_file, anchor_id)
             
-        anchor_image = Image.open(anchor_file)
-        positive_image = Image.open(positive_file)
-        negative_image = Image.open(negative_file)
+        anchor_rgb = Image.open(anchor_rgb)
+        positive_rgb = Image.open(positive_rgb)
+        negative_rgb = Image.open(negative_rgb)
+
+        anchor_ir = Image.open(anchor_ir)
+        positive_ir = Image.open(positive_ir)
+        negative_ir = Image.open(negative_ir)
         
         if self.transform is not None:
-            anchor_image = self.transform(anchor_image)
-            positive_image = self.transform(positive_image)
-            negative_image = self.transform(negative_image)
+            anchor_rgb = self.transform(anchor_rgb)
+            positive_rgb = self.transform(positive_rgb)
+            negative_rgb = self.transform(negative_rgb)
+            
+            anchor_ir = self.transform(anchor_ir)
+            positive_ir = self.transform(positive_ir)
+            negative_ir = self.transform(negative_ir)
 
-        return anchor_image, positive_image, negative_image, anchor_label, modality
+        modality_rgb = torch.tensor([1,0]).float()
+        modality_ir = torch.tensor([0,1]).float()
+
+        return anchor_rgb, positive_rgb, negative_rgb, anchor_ir, positive_ir, negative_ir, anchor_label, modality_rgb, modality_ir
 
     def __len__(self):
         return len(self.all_files)
@@ -247,3 +277,19 @@ class SYSU_eval_datasets(object):
         num_pids = len(pid_container)
         num_imgs = len(dataset)
         return dataset, num_pids, num_imgs
+
+class Image_dataset(Dataset):
+    """Image Person ReID Dataset"""
+    def __init__(self, dataset, transform=None):
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        img_path, pid, camid = self.dataset[index]
+        img = Image.open(img_path)
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, pid, camid
