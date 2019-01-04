@@ -7,8 +7,8 @@ import torch
 
 import itertools
 
-from models_acmr import FeatureGenerator, FeatureProjector, Discriminator
-from triplet_loss import TripletLoss
+from models_acmr import FeatureGenerator, IdClassifier, ModalityClassifier
+from losses import TripletLoss
 from logger import Logger
 
 ######################## Get Datasets & Dataloaders ###########################
@@ -58,12 +58,12 @@ galleryloader_train = DataLoader(
 ##################################### Import models ###########################
 
 feature_generator = FeatureGenerator()
-feature_projector = FeatureProjector()
-mode_classifier = Discriminator()
+id_classifier = IdClassifier()
+mode_classifier = ModalityClassifier()
 
 if torch.cuda.is_available():
    feature_generator.cuda()
-   feature_projector.cuda()
+   id_classifier.cuda()
    mode_classifier.cuda()
 
 ############################# Get Losses & Optimizers #########################
@@ -93,13 +93,6 @@ for epoch in range(0, 202):
 
         anchor, positive, negative, label, modality = batch
         
-        #anchor = Variable(anchor_tensor.copy_(batch[0]))
-        #positive = Variable(positive_tensor.copy_(batch[1]))
-        #negative = Variable(negative_tensor.copy_(batch[2]))
-        #label = Variable(label_tensor.copy_(batch[3]))
-        #modality = Variable(modality_tensor.copy_(batch[4]))
-
-
         if torch.cuda.is_available():
             anchor = anchor.cuda()
             positive = positive.cuda()
@@ -118,7 +111,7 @@ for epoch in range(0, 202):
 
         triplet_loss = criterion_triplet(anchor_features, positive_features, negative_features)
         
-        predicted_id = feature_projector(anchor_features)
+        predicted_id = id_classifier(anchor_features)
         identity_loss = criterion_identity(predicted_id, label)
 
         loss_G = identity_loss + triplet_loss 
