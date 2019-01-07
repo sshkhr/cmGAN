@@ -8,7 +8,6 @@ import torch
 import itertools
 
 from models import FeatureGenerator, IdClassifier, ModalityClassifier
-from losses import TripletLoss
 from logger import Logger
 
 from eval import test, evaluate
@@ -74,7 +73,7 @@ if torch.cuda.is_available():
 
 ############################# Get Losses & Optimizers #########################
 
-criterion_triplet = TripletLoss(margin = 1.4)
+criterion_triplet = torch.nn.TripletMarginLoss(margin = 1.4)
 criterion_identity = torch.nn.CrossEntropyLoss()
 criterion_modality = torch.nn.BCEWithLogitsLoss()
 
